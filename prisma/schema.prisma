@@ -1,0 +1,458 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CONTRIBUTOR
+  VIEWER
+}
+
+enum TeamRole {
+  OWNER
+  MEMBER
+}
+
+enum ResourceType {
+  DATASET
+  CODE
+  MODEL
+  DOCUMENT
+  ANNOTATION
+  NOTEBOOK
+  REPORT
+  APPLICATION
+  OTHER
+}
+
+enum Classification {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum ResourceStatus {
+  DRAFT
+  SUBMITTED
+  TRANSFERRING
+  STORED
+  FAILED
+  ARCHIVED
+}
+
+enum ResourceVisibility {
+  TEAM_ONLY
+  ORGANIZATION
+  VISITOR
+  PUBLIC
+}
+
+enum ApprovalType {
+  RESOURCE_STORAGE
+  VISIBILITY_VISITOR
+  VISIBILITY_PUBLIC
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SourceType {
+  UPLOAD
+  EXTERNAL_LINK
+  GOOGLE_DRIVE_LINK
+  GITHUB_LINK
+  HUGGINGFACE_LINK
+  SERVER_PATH
+  MANUAL
+}
+
+enum TransferStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum SourceProvider {
+  DIRECT_UPLOAD
+  GOOGLE_DRIVE
+  GITHUB
+  HUGGINGFACE
+  SERVER_PATH
+  S3
+  GCS
+  MINIO
+  MANUAL
+  OTHER
+}
+
+enum SourceKind {
+  FILE
+  FOLDER
+  REPOSITORY
+  MODEL_REPOSITORY
+  DATASET_REPOSITORY
+  SPACE_REPOSITORY
+  NOTEBOOK
+  ARCHIVE
+  DATABASE_DUMP
+  API_ENDPOINT
+  OTHER
+}
+
+enum StorageProvider {
+  LOCAL
+  MINIO
+  S3
+  GCS
+  GOOGLE_DRIVE
+  GITHUB
+  HUGGINGFACE
+  INTERNAL_SERVER
+  OTHER
+}
+
+enum StorageHandling {
+  STANDARD_LOCAL
+  ORGANIZATION_INTERNAL
+  RESTRICTED_LOCAL
+  EXTERNAL_REFERENCE_ONLY
+}
+
+enum ProjectOrigin {
+  NEW
+  EXISTING
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProjectProvisioningStatus {
+  NOT_REQUESTED
+  MANUAL_REQUIRED
+  READY
+}
+
+enum ProjectOwnershipStatus {
+  RND_ADMIN_OWNER
+  TRANSFER_REQUIRED
+  TRANSFER_VERIFIED
+}
+
+enum ProjectCollaboratorRole {
+  CONTRIBUTOR
+  REVIEWER
+  VIEWER
+}
+
+model User {
+  id            String            @id @default(cuid())
+  name          String
+  email         String            @unique
+  passwordHash  String            @map("password_hash")
+  role          UserRole          @default(VIEWER)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  teamMembers   TeamMember[]
+  ownedResources Resource[]        @relation("ResourceOwner")
+  createdResources Resource[]      @relation("ResourceCreator")
+  versions      ResourceVersion[]
+  files         ResourceFile[]
+  transferJobs  TransferJob[]
+  auditLogs     AuditLog[]
+  requestedApprovals ApprovalRequest[] @relation("ApprovalRequestedBy")
+  reviewedApprovals  ApprovalRequest[] @relation("ApprovalReviewedBy")
+  ledProjects    Project[]          @relation("ProjectLead")
+  createdProjects Project[]         @relation("ProjectCreator")
+  projectCollaborations ProjectCollaborator[]
+
+  @@map("users")
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  archivedAt  DateTime?    @map("archived_at")
+  members     TeamMember[]
+  resources   Resource[]
+  contributedResources Resource[] @relation("ResourceContributedByTeam")
+  projects    Project[]
+
+  @@index([name])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id")
+  role      TeamRole @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("team_members")
+}
+
+model ResourceCategory {
+  id          String             @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  parentId    String?            @map("parent_id")
+  level       Int
+  sortOrder   Int?               @map("sort_order")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  archivedAt  DateTime?          @map("archived_at")
+  parent      ResourceCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children    ResourceCategory[] @relation("CategoryHierarchy")
+  resources   Resource[]
+
+  @@unique([parentId, name])
+  @@unique([parentId, slug])
+  @@index([parentId])
+  @@index([level])
+  @@index([slug])
+  @@index([archivedAt])
+  @@map("resource_categories")
+}
+
+model Project {
+  id                 String                    @id @default(cuid())
+  name               String
+  slug               String                    @unique
+  description        String?
+  origin             ProjectOrigin
+  status             ProjectStatus            @default(ACTIVE)
+  provisioningStatus ProjectProvisioningStatus @default(NOT_REQUESTED) @map("provisioning_status")
+  ownershipStatus    ProjectOwnershipStatus    @default(RND_ADMIN_OWNER) @map("ownership_status")
+  repositoryUrl      String?                   @map("repository_url")
+  repositoryName     String?                   @map("repository_name")
+  teamId             String                    @map("team_id")
+  leadUserId         String                    @map("lead_user_id")
+  createdById        String                    @map("created_by_id")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+  archivedAt         DateTime?                 @map("archived_at")
+  team               Team                      @relation(fields: [teamId], references: [id])
+  leadUser           User                      @relation("ProjectLead", fields: [leadUserId], references: [id])
+  createdBy          User                      @relation("ProjectCreator", fields: [createdById], references: [id])
+  collaborators      ProjectCollaborator[]
+  resources          Resource[]
+
+  @@index([teamId])
+  @@index([leadUserId])
+  @@index([origin])
+  @@index([status])
+  @@index([archivedAt])
+  @@map("projects")
+}
+
+model ProjectCollaborator {
+  id        String                  @id @default(cuid())
+  projectId String                  @map("project_id")
+  userId    String                  @map("user_id")
+  role      ProjectCollaboratorRole @default(CONTRIBUTOR)
+  createdAt DateTime                @default(now()) @map("created_at")
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_collaborators")
+}
+
+model Resource {
+  id                     String            @id @default(cuid())
+  name                   String
+  slug                   String            @unique
+  description            String?
+  resourceType           ResourceType      @map("resource_type")
+  classification         Classification
+  primaryCategoryId      String?           @map("primary_category_id")
+  projectId              String?           @map("project_id")
+  contributedByTeamId    String?           @map("contributed_by_team_id")
+  ownerUserId            String            @map("owner_user_id")
+  teamId                 String            @map("team_id")
+  currentWorkingLocation String?           @map("current_working_location")
+  stagingStorageLocation String?           @map("staging_storage_location")
+  officialStorageLocation String?          @map("official_storage_location")
+  sourceAccessGranted    Boolean           @default(false) @map("source_access_granted")
+  sourceAccessInstructions String?          @map("source_access_instructions")
+  storageHandling        StorageHandling   @default(STANDARD_LOCAL) @map("storage_handling")
+  storageDecisionNotes   String?           @map("storage_decision_notes")
+  sourceProvider         SourceProvider    @default(MANUAL) @map("source_provider")
+  sourceKind             SourceKind        @default(OTHER) @map("source_kind")
+  sourceUrl              String?           @map("source_url")
+  storageProvider        StorageProvider   @default(LOCAL) @map("storage_provider")
+  metadataJson           Json?             @map("metadata_json")
+  status                 ResourceStatus    @default(SUBMITTED)
+  visibility             ResourceVisibility @default(TEAM_ONLY)
+  pendingVisibility      ResourceVisibility? @map("pending_visibility")
+  teamApprovedAt         DateTime?         @map("team_approved_at")
+  teamApprovedById       String?           @map("team_approved_by_id")
+  adminApprovedAt        DateTime?         @map("admin_approved_at")
+  adminApprovedById      String?           @map("admin_approved_by_id")
+  createdById            String            @map("created_by_id")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  archivedAt             DateTime?         @map("archived_at")
+  owner                  User              @relation("ResourceOwner", fields: [ownerUserId], references: [id])
+  team                   Team              @relation(fields: [teamId], references: [id])
+  project                Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contributedByTeam      Team?             @relation("ResourceContributedByTeam", fields: [contributedByTeamId], references: [id], onDelete: SetNull)
+  createdBy              User              @relation("ResourceCreator", fields: [createdById], references: [id])
+  primaryCategory        ResourceCategory? @relation(fields: [primaryCategoryId], references: [id], onDelete: SetNull)
+  versions               ResourceVersion[]
+  files                  ResourceFile[]
+  transferJobs           TransferJob[]
+  auditLogs              AuditLog[]
+  tags                   ResourceTag[]
+  approvalRequests       ApprovalRequest[]
+
+  @@index([resourceType])
+  @@index([primaryCategoryId])
+  @@index([projectId])
+  @@index([contributedByTeamId])
+  @@index([sourceProvider])
+  @@index([sourceKind])
+  @@index([storageProvider])
+  @@index([storageHandling])
+  @@index([status])
+  @@index([visibility])
+  @@index([classification])
+  @@index([teamId])
+  @@index([ownerUserId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("resources")
+}
+
+model ApprovalRequest {
+  id                  String             @id @default(cuid())
+  resourceId          String             @map("resource_id")
+  requestedById       String             @map("requested_by_id")
+  reviewedById        String?            @map("reviewed_by_id")
+  type                ApprovalType
+  status              ApprovalStatus     @default(PENDING)
+  requestedVisibility ResourceVisibility? @map("requested_visibility")
+  note                String?
+  decisionNote        String?            @map("decision_note")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  reviewedAt          DateTime?          @map("reviewed_at")
+  resource            Resource           @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  requestedBy         User               @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy          User?              @relation("ApprovalReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([resourceId])
+  @@index([status])
+  @@index([type])
+  @@map("approval_requests")
+}
+
+model ResourceTag {
+  id         String   @id @default(cuid())
+  resourceId String   @map("resource_id")
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, name])
+  @@index([resourceId])
+  @@index([name])
+  @@map("resource_tags")
+}
+
+model ResourceVersion {
+  id              String         @id @default(cuid())
+  resourceId      String         @map("resource_id")
+  versionNumber   Int            @map("version_number")
+  versionName     String         @map("version_name")
+  description     String?
+  storagePath     String         @map("storage_path")
+  checksum        String?
+  fileCount       Int            @default(0) @map("file_count")
+  totalSizeBytes  BigInt         @default(0) @map("total_size_bytes")
+  createdById     String         @map("created_by_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  resource        Resource       @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  files           ResourceFile[]
+  transferJobs    TransferJob[]
+
+  @@unique([resourceId, versionNumber])
+  @@map("resource_versions")
+}
+
+model ResourceFile {
+  id               String          @id @default(cuid())
+  resourceId       String          @map("resource_id")
+  versionId        String          @map("version_id")
+  originalFileName String          @map("original_file_name")
+  storedFileName   String          @map("stored_file_name")
+  fileType         String?         @map("file_type")
+  mimeType         String?         @map("mime_type")
+  fileSizeBytes    BigInt          @map("file_size_bytes")
+  checksumSha256   String          @map("checksum_sha256")
+  storagePath      String          @map("storage_path")
+  uploadedById     String          @map("uploaded_by_id")
+  uploadedAt       DateTime        @default(now()) @map("uploaded_at")
+  resource         Resource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  version          ResourceVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  uploadedBy       User            @relation(fields: [uploadedById], references: [id])
+
+  @@map("resource_files")
+}
+
+model TransferJob {
+  id                  String          @id @default(cuid())
+  resourceId          String          @map("resource_id")
+  versionId           String?         @map("version_id")
+  sourceType          SourceType      @map("source_type")
+  sourceLocation      String          @map("source_location")
+  destinationLocation String?         @map("destination_location")
+  status              TransferStatus  @default(PENDING)
+  errorMessage        String?         @map("error_message")
+  createdById         String          @map("created_by_id")
+  startedAt           DateTime?       @map("started_at")
+  completedAt         DateTime?       @map("completed_at")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  resource            Resource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  version             ResourceVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+  createdBy           User            @relation(fields: [createdById], references: [id])
+
+  @@map("transfer_jobs")
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  resourceId String?   @map("resource_id")
+  action     String
+  details    Json?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id])
+  resource   Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+
+  @@index([resourceId])
+  @@map("audit_logs")
+}

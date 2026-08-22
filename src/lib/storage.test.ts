@@ -4,16 +4,16 @@ import { generateResourceSlug, generateStoragePath, sanitizeFileName } from "@/l
 
 describe("storage helpers", () => {
   it("generates safe resource slugs", () => {
-    expect(generateResourceSlug("Khmer OCR Dataset!")).toBe("khmer_ocr_dataset");
+    expect(generateResourceSlug("Engineering Handbook!")).toBe("engineering_handbook");
   });
 
   it("sanitizes uploaded file names", () => {
-    expect(sanitizeFileName("../My File.zip")).toBe("My_File.zip");
+    expect(sanitizeFileName("../Team Handbook.pdf")).toBe("Team_Handbook.pdf");
   });
 
-  it("generates official storage paths", () => {
-    expect(generateStoragePath(ResourceType.DATASET, "khmer_ocr_dataset", 1, "dataset.zip")).toBe(
-      "datasets/khmer_ocr_dataset/v1/dataset.zip"
+  it("generates document storage paths", () => {
+    expect(generateStoragePath(ResourceType.DOCUMENT, "engineering_handbook", 1, "handbook.pdf")).toBe(
+      "documents/engineering_handbook/v1/handbook.pdf"
     );
   });
 });

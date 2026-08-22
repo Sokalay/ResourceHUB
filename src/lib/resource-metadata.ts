@@ -82,9 +82,9 @@ export function workflowStateLabel(value: WorkflowState) {
     FAILED: "Failed",
     PUBLIC_APPROVAL_PENDING: "Public approval pending",
     VISITOR_APPROVAL_PENDING: "Visitor approval pending",
-    STORAGE_APPROVAL_PENDING: "Storage approval pending",
+    STORAGE_APPROVAL_PENDING: "Review pending",
     EXTERNAL_ACCESS_REVIEW: "Access review needed",
-    OFFICIALLY_STORED: "Officially stored",
+    OFFICIALLY_STORED: "Current",
     SUBMITTED: "Submitted"
   };
   return labels[value];
@@ -100,7 +100,7 @@ export function workflowStateClass(value: WorkflowState) {
 
 export function approvalTypeLabel(value: string) {
   const labels: Record<string, string> = {
-    RESOURCE_STORAGE: "Storage approval",
+    RESOURCE_STORAGE: "Document review",
     VISIBILITY_PUBLIC: "Public visibility",
     VISIBILITY_VISITOR: "Visitor visibility"
   };
@@ -118,8 +118,8 @@ export function humanizeEnum(value?: string | null) {
 
 export function storageStatusLabel(value: StorageStatus) {
   const labels: Record<StorageStatus, string> = {
-    HAS_OFFICIAL_COPY: "Official Copy",
-    NO_OFFICIAL_COPY: "No Official Copy",
+    HAS_OFFICIAL_COPY: "Current version",
+    NO_OFFICIAL_COPY: "No Current version",
     LOCAL_ONLY: "Local Only",
     EXTERNAL_ONLY: "External Only",
     BOTH_EXTERNAL_AND_OFFICIAL: "External + Official"

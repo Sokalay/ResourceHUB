@@ -54,23 +54,8 @@ export const classificationClasses: Record<Classification, string> = {
 export const neutralBadgeClass = "bg-slate-50 text-slate-700 border-slate-200";
 
 export const allowedExtensions = new Set([
-  ".zip",
-  ".csv",
-  ".json",
-  ".jsonl",
   ".pdf",
   ".docx",
   ".txt",
-  ".py",
-  ".ipynb",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".pt",
-  ".pth",
-  ".onnx",
-  ".safetensors",
-  ".tar",
-  ".gz",
-  ".7z"
+  ".md"
 ]);

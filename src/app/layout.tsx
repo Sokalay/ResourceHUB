@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Resource Hub",
-  description: "Official storage and transfer tracking for R&D digital resources"
+  description: "One trusted place for every team's latest documentation"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
